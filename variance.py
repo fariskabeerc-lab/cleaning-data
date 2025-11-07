@@ -14,7 +14,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # --- Streamlit Page Config ---
 st.set_page_config(layout="wide", page_title="AI Item Classification Tool")
-st.title("🛒 AI Item Classification Tool")
+st.title("Item Classification")
 st.markdown("""
 Upload your **full items details.xlsx** file. The AI will analyze `Item Name` 
 and automatically classify each item into **Category** and **Sub_Category**.
