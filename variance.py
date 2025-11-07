@@ -3,25 +3,26 @@
 import streamlit as st
 import pandas as pd
 import io
-import openai
 import os
+from openai import OpenAI
 import math
+import json
 
-# --- Set your OpenAI API key safely ---
-# You can also set it as environment variable instead of hardcoding
-openai.api_key = os.getenv("OPENAI_API_KEY")  # or replace with "YOUR_API_KEY"
+# --- Initialize OpenAI client ---
+# Make sure you set your OpenAI API key as an environment variable
+# e.g., in terminal: export OPENAI_API_KEY="your_api_key"
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 st.set_page_config(layout="wide", page_title="AI Item Classifier")
 st.title("🛒 AI Item Classification Tool")
-st.markdown(
-    """
-    The app automatically reads your **full items details.xlsx**, 
-    analyzes `Item Name`, and classifies it into **Category** and **Sub-Category**.
-    """
-)
+st.markdown("""
+The app reads your **full items details.xlsx**, analyzes `Item Name`, 
+and classifies it into **Category** and **Sub-Category** using AI.
+""")
 
-# --- Load Excel ---
+# --- Load Excel file ---
 file_path = "full items details.xlsx"
+
 try:
     df = pd.read_excel(file_path)
     if 'Item Name' not in df.columns:
@@ -34,16 +35,16 @@ except Exception as e:
     st.error(f"Error reading Excel file: {e}")
     st.stop()
 
-
-# --- Function to classify a batch of items ---
+# --- AI Classification Function ---
 def classify_batch(item_names):
     """
-    Takes a list of item names and returns a list of dicts with Category and Sub-Category.
+    Classify a list of item names into Category and Sub-Category using OpenAI.
+    Returns a pandas DataFrame with 'Item Name', 'Category', 'Sub_Category'.
     """
     prompt = f"""
-    You are an expert product classifier. 
+    You are an expert product classifier.
     Classify the following items into Category and Sub-Category.
-    Return **JSON array** where each item has 'Item Name', 'Category', 'Sub_Category'.
+    Return a JSON array where each item has 'Item Name', 'Category', 'Sub_Category'.
 
     Items: {item_names}
 
@@ -53,23 +54,23 @@ def classify_batch(item_names):
       {{ "Item Name": "Example Item 2", "Category": "Category2", "Sub_Category": "Sub2" }}
     ]
     """
-    
+
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or "gpt-4"
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0
         )
         text = response.choices[0].message.content.strip()
-        # Convert JSON text to Python object
-        return pd.json_normalize(eval(text))
+        # Convert JSON string to list of dicts
+        classified_data = json.loads(text)
+        return pd.json_normalize(classified_data)
     except Exception as e:
         st.error(f"Error during AI classification: {e}")
         return pd.DataFrame(columns=['Item Name', 'Category', 'Sub_Category'])
 
-
 # --- Run classification in batches ---
-batch_size = 10  # You can adjust this based on API limits
+batch_size = 10  # Adjust if you have many items
 classified_list = []
 
 with st.spinner("🚀 Classifying items using AI..."):
@@ -80,13 +81,12 @@ with st.spinner("🚀 Classifying items using AI..."):
         classified_list.append(batch_result)
 
     classified_df = pd.concat(classified_list, ignore_index=True)
-    # Merge with original dataframe
+    # Merge with original DataFrame
     final_df = df.merge(classified_df, on='Item Name', how='left')
 
 st.success("✅ AI Classification complete!")
 st.subheader("Classified Items Preview")
 st.dataframe(final_df.head(), use_container_width=True)
-
 
 # --- Download Option ---
 @st.cache_data
